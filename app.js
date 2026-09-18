@@ -249,6 +249,7 @@
   }
 
   function startEdit(id) {
+    if (state.editingId === id) return; // guard: touch double-tap + synthetic dblclick can both fire
     commitEdit();
     const n = state.store.nodes[id];
     const p = state.pos.get(id);
@@ -384,14 +385,19 @@
       applyView();
     }, { passive: false });
 
-    // pinch zoom
+    // pinch zoom, anchored at the pinch midpoint
     let pinch = null;
     els.svg.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
         const [a, b] = e.touches;
+        const r = els.svg.getBoundingClientRect();
         pinch = {
           d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
           z: state.view.z,
+          cx: (a.clientX + b.clientX) / 2 - r.left,
+          cy: (a.clientY + b.clientY) / 2 - r.top,
+          vx: state.view.x,
+          vy: state.view.y,
         };
         svgDrag.drag = null;
         svgDrag.pan = null;
@@ -401,7 +407,10 @@
       if (pinch && e.touches.length === 2) {
         const [a, b] = e.touches;
         const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-        state.view.z = Math.min(2.5, Math.max(0.25, pinch.z * (d / pinch.d)));
+        const z = Math.min(2.5, Math.max(0.25, pinch.z * (d / pinch.d)));
+        state.view.x = pinch.cx - (pinch.cx - pinch.vx) * (z / pinch.z);
+        state.view.y = pinch.cy - (pinch.cy - pinch.vy) * (z / pinch.z);
+        state.view.z = z;
         applyView();
       }
     }, { passive: true });
