@@ -4,24 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Thought Map</title>
-
-<!-- PWA -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f1115">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-
-<!-- iOS home-screen app -->
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Thoughts">
-
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
 <header>
   <h1>Thought Map</h1>
   <form id="capture-form">
@@ -36,7 +30,6 @@
     <button id="btn-reset" type="button" class="danger">Reset</button>
   </nav>
 </header>
-
 <main>
   <aside>
     <input id="search-input" type="search" placeholder="Search thoughts & tags" autocomplete="off">
@@ -58,14 +51,35 @@
     <p id="stats" class="stats"></p>
     <p class="footer-note"><a href="tests.html">Run engine tests</a></p>
   </aside>
-
   <div id="map-wrap">
     <svg id="map"><g id="viewport"></g></svg>
     <div id="edit-host"></div>
   </div>
 </main>
-
 <script src="engine.js"></script>
 <script src="app.js"></script>
+<script>
+(function () {
+  function fail(msg) {
+    var b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f7768e;color:#0f1115;padding:10px 14px;font:13px/1.4 system-ui,sans-serif;';
+    b.textContent = msg;
+    document.body.appendChild(b);
+  }
+  var missing = [];
+  if (typeof Engine === 'undefined') missing.push('engine.js');
+  if (!document.getElementById('viewport')) missing.push('the #viewport element');
+  if (missing.length) {
+    fail('Thought Map could not start: ' + missing.join(', ') + ' did not load. ' +
+         'engine.js, app.js and styles.css must sit in the SAME folder as index.html. ' +
+         'Check the browser console (F12) for the failing file, then reload.');
+    return;
+  }
+  var vp = document.getElementById('viewport');
+  if (!vp.childNodes.length) {
+    fail('Thought Map started but rendered nothing — open the browser console (F12) for details.');
+  }
+})();
+</script>
 </body>
 </html>

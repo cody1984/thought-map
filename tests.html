@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engine Tests — Thought Map</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="test-page">
+<h1>Engine Test Suite</h1>
+<p class="stats">Deterministic tests for engine.js — no DOM, no storage, no network.</p>
+<div id="results"></div>
+<script src="engine.js"></script>
+<script src="tests.js"></script>
+<script>
+(function () {
+  var missing = [];
+  if (typeof Engine === 'undefined') missing.push('engine.js');
+  if (typeof ThoughtmapTests === 'undefined') missing.push('tests.js');
+  var host = document.getElementById('results');
+  if (missing.length) {
+    var b = document.createElement('div');
+    b.style.cssText = 'background:#f7768e;color:#0f1115;padding:10px 14px;font:13px/1.4 system-ui,sans-serif;margin:10px 0;';
+    b.textContent = 'Cannot run tests: ' + missing.join(', ') + ' did not load. ' +
+      'engine.js and tests.js must sit in the SAME folder as this page. ' +
+      'Check the browser console (F12) for the failing file.';
+    host.insertBefore(b, host.firstChild);
+    return;
+  }
+  ThoughtmapTests.run();
+})();
+</script>
+</body>
+</html>

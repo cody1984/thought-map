@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thought Map — standalone</title>
+<style>
+/* styles.css — presentation layer only. No layout or behaviour logic. */
+:root {
+  --bg: #0f1115; --panel: #171a21; --border: #2a2f3a;
+  --text: #c8d0e0; --muted: #7b8496;
+  --accent: #7aa2f7; --accent2: #bb9af7;
+  --warn: #e0af68; --ok: #9ece6a; --bad: #f7768e;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+@supports (height: 100dvh) { html, body { height: 100dvh; } }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: flex; flex-direction: column;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+header {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  padding: 10px 14px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  padding-left: max(14px, env(safe-area-inset-left));
+  padding-right: max(14px, env(safe-area-inset-right));
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+h1 { font-size: 16px; margin: 0 6px 0 0; color: var(--accent2); white-space: nowrap; }
+#capture-form { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; min-width: 220px; }
+#capture-input {
+  flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 16px;
+}
+#capture-input:focus { outline: none; border-color: var(--accent); }
+#capture-hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
+nav { display: flex; gap: 6px; }
+button {
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); font-size: 13px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.danger:hover { border-color: var(--bad); color: var(--bad); }
+@media (pointer: coarse) { button { padding: 10px 14px; } }
+main { flex: 1; display: flex; min-height: 0; }
+aside {
+  width: 250px; flex-shrink: 0; padding: 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: var(--panel); border-right: 1px solid var(--border);
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+aside h2 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted); margin: 14px 0 6px;
+}
+#search-input {
+  width: 100%; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 16px;
+}
+#search-input:focus { outline: none; border-color: var(--accent); }
+#tag-list { list-style: none; margin: 0; padding: 0; }
+#tag-list li { margin: 2px 0; }
+#tag-list button { width: 100%; display: flex; justify-content: space-between; text-align: left; padding: 5px 9px; }
+#tag-list button.active { border-color: var(--accent); color: var(--accent); }
+#tag-list .count { color: var(--muted); }
+#tag-list .empty { color: var(--muted); font-size: 12px; }
+dl.help { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+dl.help dt { color: var(--accent); font-weight: 600; }
+dl.help dd { margin: 0; color: var(--muted); }
+.stats { color: var(--muted); font-size: 12px; }
+.footer-note a { color: var(--accent); font-size: 12px; }
+#map-wrap { flex: 1; position: relative; overflow: hidden; min-width: 0; }
+#map {
+  width: 100%; height: 100%; display: block; touch-action: none; cursor: grab;
+  -webkit-user-select: none; user-select: none;
+}
+#map:active { cursor: grabbing; }
+#edit-host { position: absolute; inset: 0; pointer-events: none; }
+.edit-pop {
+  position: absolute; pointer-events: auto; width: 280px;
+  padding: 6px 9px; border-radius: 8px; border: 1px solid var(--accent);
+  background: var(--panel); color: var(--text); font-size: 16px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .5);
+}
+.link { stroke: #39415a; stroke-width: 2; fill: none; }
+.link.dim { opacity: .12; }
+.node { cursor: pointer; }
+.node circle { fill: var(--accent); }
+.node.root circle { fill: var(--accent2); }
+.node text { fill: var(--text); font-size: 13px; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
+.node.root text { font-size: 15px; font-weight: 600; fill: #fff; }
+.node.selected circle { stroke: var(--warn); stroke-width: 3; }
+.node .badge { fill: var(--bg); font-size: 11px; font-weight: 700; paint-order: stroke; stroke: var(--accent); stroke-width: 3px; }
+.node .tagline { font-size: 10px; }
+.node .tagline tspan { fill: var(--muted); cursor: pointer; }
+.node .tagline tspan:hover, .node .tagline tspan.active { fill: var(--accent); text-decoration: underline; }
+.node.dim { opacity: .18; }
+@media (max-width: 720px) {
+  main { flex-direction: column-reverse; }
+  aside { width: 100%; border-right: none; border-top: 1px solid var(--border); max-height: 34vh; }
+}
+.test-page { display: block; padding: 20px; }
+#results .summary.pass { color: var(--ok); font-weight: 600; }
+#results .summary.fail { color: var(--bad); font-weight: 600; }
+#results ul { list-style: none; padding: 0; font-family: ui-monospace, monospace; font-size: 12px; }
+#results li.pass { color: var(--ok); }
+#results li.fail { color: var(--bad); }
+
+</style>
+</head>
+<body>
+<header>
+  <h1>Thought Map</h1>
+  <form id="capture-form">
+    <input id="capture-input" type="text" placeholder="Capture a thought…  use #tags to group" autocomplete="off">
+    <span id="capture-hint"></span>
+  </form>
+  <nav>
+    <button id="btn-relayout" type="button" title="Clear manual positions and re-run auto layout">Relayout</button>
+    <button id="btn-export" type="button">Export</button>
+    <button id="btn-import" type="button">Import</button>
+    <input id="file-import" type="file" accept="application/json" hidden>
+    <button id="btn-reset" type="button" class="danger">Reset</button>
+  </nav>
+</header>
+<main>
+  <aside>
+    <input id="search-input" type="search" placeholder="Search thoughts & tags" autocomplete="off">
+    <h2>Tags</h2>
+    <ul id="tag-list"></ul>
+    <h2>Shortcuts</h2>
+    <dl class="help">
+      <dt>N</dt><dd>capture box</dd>
+      <dt>Enter</dt><dd>add thought (to selected node, else root)</dd>
+      <dt>Tap</dt><dd>select node</dd>
+      <dt>Double-tap</dt><dd>rename / retag node</dd>
+      <dt>Drag node</dt><dd>position freely (groups “like” thoughts spatially)</dd>
+      <dt>Drag canvas</dt><dd>pan</dd>
+      <dt>Pinch / scroll</dt><dd>zoom</dd>
+      <dt>Space</dt><dd>collapse / expand branch</dd>
+      <dt>Delete</dt><dd>remove node (children rejoin its parent)</dd>
+      <dt>Esc</dt><dd>clear selection & filters</dd>
+    </dl>
+    <p id="stats" class="stats"></p>
+    <p class="footer-note"><a href="tests.html">Run engine tests</a></p>
+  </aside>
+  <div id="map-wrap">
+    <svg id="map"><g id="viewport"></g></svg>
+    <div id="edit-host"></div>
+  </div>
+</main>
+<script>
+/*__ENGINE__*/
+
+const Engine = (() => {
+  'use strict';
+  function createStore() {
+    return {
+      version: 1, rootId: 'root', seq: 0,
+      nodes: { root: { id: 'root', text: 'Thoughts', parentId: null, tags: [], collapsed: false, px: null, py: null, order: 0 } },
+    };
+  }
+  function clone(store) {
+    const nodes = {};
+    for (const id of Object.keys(store.nodes)) nodes[id] = { ...store.nodes[id], tags: [...store.nodes[id].tags] };
+    return { version: store.version, rootId: store.rootId, seq: store.seq ?? 0, nodes };
+  }
+  function childrenOf(store, id) {
+    return Object.values(store.nodes).filter((n) => n.parentId === id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }
+  function pathToRoot(store, id) {
+    const out = [];
+    let cur = store.nodes[id];
+    const limit = Object.keys(store.nodes).length + 1;
+    let hops = 0;
+    while (cur && hops < limit) {
+      out.push(cur.id);
+      if (cur.parentId === null) return out;
+      cur = store.nodes[cur.parentId];
+      hops++;
+    }
+    throw new Error(`pathToRoot: node "${id}" does not reach the root (cycle or orphan)`);
+  }
+  function isDescendant(store, ancestorId, id) {
+    let cur = store.nodes[id];
+    const limit = Object.keys(store.nodes).length + 1;
+    let hops = 0;
+    while (cur && cur.parentId !== null && hops < limit) {
+      if (cur.parentId === ancestorId) return true;
+      cur = store.nodes[cur.parentId];
+      hops++;
+    }
+    return false;
+  }
+  function addNode(store, { id, text, parentId, tags } = {}) {
+    const s = clone(store);
+    const pid = parentId === undefined ? s.rootId : parentId;
+    if (!s.nodes[pid]) throw new Error(`addNode: parent "${pid}" does not exist`);
+    const order = s.seq + 1;
+    s.seq = order;
+    let nid = id;
+    if (nid === undefined) { nid = 'n' + order; }
+    else {
+      if (nid === s.rootId) throw new Error('addNode: cannot reuse the root id');
+      const m = /^n(\d+)$/.exec(String(nid));
+      if (m) s.seq = Math.max(s.seq, Number(m[1]));
+    }
+    if (s.nodes[nid] !== undefined) throw new Error(`addNode: duplicate id "${nid}"`);
+    s.nodes[nid] = {
+      id: nid, text: typeof text === 'string' ? text : '', parentId: pid,
+      tags: Array.isArray(tags) ? [...tags] : [], collapsed: false, px: null, py: null, order,
+    };
+    return { store: s, id: nid };
+  }
+  function updateNode(store, id, patch) {
+    const s = clone(store);
+    const n = s.nodes[id];
+    if (!n) throw new Error(`updateNode: unknown id "${id}"`);
+    const fields = ['text', 'tags', 'collapsed', 'px', 'py'];
+    for (const [k, v] of Object.entries(patch)) {
+      if (!fields.includes(k)) throw new Error(`updateNode: unknown field "${k}"`);
+      if (k === 'text' && typeof v !== 'string') throw new Error('updateNode: text must be a string');
+      if (k === 'tags') {
+        if (!Array.isArray(v) || v.some((t) => typeof t !== 'string')) throw new Error('updateNode: tags must be an array of strings');
+        n.tags = [...v];
+      } else { n[k] = v; }
+    }
+    return s;
+  }
+  function deleteNode(store, id) {
+    if (id === store.rootId) throw new Error('deleteNode: cannot delete the root');
+    const s = clone(store);
+    const victim = s.nodes[id];
+    if (!victim) throw new Error(`deleteNode: unknown id "${id}"`);
+    for (const n of Object.values(s.nodes)) { if (n.parentId === id) n.parentId = victim.parentId; }
+    delete s.nodes[id];
+    return s;
+  }
+  function moveNode(store, id, newParentId) {
+    if (id === store.rootId) throw new Error('moveNode: cannot move the root');
+    const s = clone(store);
+    if (!s.nodes[id]) throw new Error(`moveNode: unknown id "${id}"`);
+    if (!s.nodes[newParentId]) throw new Error(`moveNode: unknown parent "${newParentId}"`);
+    if (newParentId === id || isDescendant(s, id, newParentId)) throw new Error('moveNode: would create a cycle');
+    s.nodes[id].parentId = newParentId;
+    return s;
+  }
+  function toggleCollapse(store, id) {
+    const n = store.nodes[id];
+    if (!n) throw new Error(`toggleCollapse: unknown id "${id}"`);
+    return updateNode(store, id, { collapsed: !n.collapsed });
+  }
+  function parseQuickEntry(raw) {
+    const tags = [];
+    const text = String(raw ?? '')
+      .replace(/#([\w-]+)/g, (_, t) => { tags.push(t.toLowerCase()); return ' '; })
+      .replace(/\s+/g, ' ')
+      .trim();
+    return { text, tags };
+  }
+  function searchNodes(store, query) {
+    const q = String(query ?? '').trim().toLowerCase();
+    const matches = new Set();
+    if (q) {
+      for (const n of Object.values(store.nodes)) {
+        if (n.text.toLowerCase().includes(q) || n.tags.some((t) => t.toLowerCase().includes(q))) matches.add(n.id);
+      }
+    }
+    const highlighted = new Set(matches);
+    for (const id of matches) { for (const a of pathToRoot(store, id)) highlighted.add(a); }
+    return { matches, highlighted };
+  }
+  function clustersByTag(store) {
+    const map = new Map();
+    for (const n of Object.values(store.nodes)) {
+      if (n.id === store.rootId) continue;
+      for (const t of n.tags) {
+        if (!map.has(t)) map.set(t, []);
+        map.get(t).push(n.id);
+      }
+    }
+    return map;
+  }
+  function subtreeLeaves(store, id, memo = {}) {
+    if (memo[id] !== undefined) return memo[id];
+    const node = store.nodes[id];
+    const kids = node.collapsed ? [] : childrenOf(store, id);
+    memo[id] = kids.length === 0 ? 1 : kids.reduce((t, k) => t + subtreeLeaves(store, k.id, memo), 0);
+    return memo[id];
+  }
+  function computeLayout(store, opts = {}) {
+    const { cx = 0, cy = 0, radiusStep = 190 } = opts;
+    const memo = {};
+    const pos = new Map([[store.rootId, { x: cx, y: cy }]]);
+    const place = (id, a0, a1, depth) => {
+      const node = store.nodes[id];
+      const kids = node.collapsed ? [] : childrenOf(store, id);
+      if (kids.length === 0) return;
+      const total = kids.reduce((t, k) => t + subtreeLeaves(store, k.id, memo), 0);
+      const r = radiusStep * depth;
+      let a = a0;
+      for (const k of kids) {
+        const span = ((a1 - a0) * subtreeLeaves(store, k.id, memo)) / total;
+        const mid = a + span / 2;
+        pos.set(k.id, { x: cx + r * Math.cos(mid), y: cy + r * Math.sin(mid) });
+        place(k.id, a, a + span, depth + 1);
+        a += span;
+      }
+    };
+    place(store.rootId, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2, 1);
+    for (const [id, p] of pos) {
+      const n = store.nodes[id];
+      if (n.px !== null && n.px !== undefined) p.x = n.px;
+      if (n.py !== null && n.py !== undefined) p.y = n.py;
+    }
+    return pos;
+  }
+  function validateStore(store) {
+    const errors = [];
+    if (!store || typeof store !== 'object') return { ok: false, errors: ['store is not an object'] };
+    if (!store.nodes || typeof store.nodes !== 'object') return { ok: false, errors: ['store.nodes is missing'] };
+    const ids = Object.keys(store.nodes);
+    const rootId = store.rootId;
+    for (const id of ids) {
+      const n = store.nodes[id];
+      if (n.id !== id) errors.push(`node "${id}": key/id mismatch`);
+      if (typeof n.text !== 'string') errors.push(`node "${id}": text must be a string`);
+      if (!Array.isArray(n.tags) || n.tags.some((t) => typeof t !== 'string')) errors.push(`node "${id}": tags must be an array of strings`);
+      if (n.parentId === id) errors.push(`node "${id}": parent of itself`);
+      if (n.parentId !== null && !store.nodes[n.parentId]) errors.push(`node "${id}": orphaned (parent "${n.parentId}" missing)`);
+    }
+    if (!store.nodes[rootId]) {
+      errors.push(`root node "${rootId}" is missing`);
+    } else {
+      if (store.nodes[rootId].parentId !== null) errors.push('root must not have a parent');
+      for (const id of ids) {
+        if (id === rootId) continue;
+        let cur = store.nodes[id], hops = 0, reaches = false;
+        while (cur && hops <= ids.length) {
+          if (cur.id === rootId) { reaches = true; break; }
+          cur = store.nodes[cur.parentId];
+          hops++;
+        }
+        if (!reaches) errors.push(`node "${id}": unreachable from root (cycle or orphan)`);
+      }
+    }
+    return { ok: errors.length === 0, errors };
+  }
+  function serialize(store) { return JSON.stringify(store); }
+  function deserialize(raw) {
+    let s;
+    try { s = JSON.parse(raw); } catch (e) { return { error: 'invalid JSON: ' + e.message }; }
+    if (!s || typeof s !== 'object') return { error: 'store must be an object' };
+    if (typeof s.seq !== 'number' || !Number.isFinite(s.seq)) s.seq = 0;
+    const v = validateStore(s);
+    if (!v.ok) return { error: 'invalid store: ' + v.errors.join('; ') };
+    return { store: s };
+  }
+  return {
+    createStore, clone, childrenOf, pathToRoot, isDescendant, subtreeLeaves,
+    addNode, updateNode, deleteNode, moveNode, toggleCollapse,
+    parseQuickEntry, searchNodes, clustersByTag,
+    computeLayout, validateStore, serialize, deserialize,
+  };
+})();
+
+</script>
+<script>
+/*__APP__*/
+
+(() => {
+  'use strict';
+  const STORAGE_KEY = 'thoughtmap-v1';
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    svg: $('map'),
+    viewport: $('viewport'),
+    mapWrap: $('map-wrap'),
+    editHost: $('edit-host'),
+    capture: $('capture-input'),
+    captureHint: $('capture-hint'),
+    search: $('search-input'),
+    tagList: $('tag-list'),
+    stats: $('stats'),
+  };
+  const state = {
+    store: null,
+    pos: new Map(),
+    selectedId: null,
+    view: { x: 0, y: 0, z: 1 },
+    search: '',
+    tagFilter: null,
+    editingId: null,
+  };
+  let justDragged = false;
+  let lastTap = { id: null, t: 0 };
+  function load() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const res = Engine.deserialize(raw);
+      if (res.store) return res.store;
+      console.warn('Discarded corrupt saved data:', res.error);
+    }
+    return Engine.createStore();
+  }
+  function save() {
+    const v = Engine.validateStore(state.store);
+    if (!v.ok) {
+      console.error('Refusing to save invalid store:', v.errors);
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, Engine.serialize(state.store));
+  }
+  function applyView() {
+    els.viewport.setAttribute('transform',
+      `translate(${state.view.x} ${state.view.y}) scale(${state.view.z})`);
+  }
+  function mapToScreen(p) {
+    return { x: state.view.x + p.x * state.view.z, y: state.view.y + p.y * state.view.z };
+  }
+  function svgPoint(ev) {
+    const r = els.svg.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+  function highlightSet() {
+    const hl = new Set();
+    const add = (id) => {
+      hl.add(id);
+      for (const a of Engine.pathToRoot(state.store, id)) hl.add(a);
+    };
+    if (state.tagFilter) {
+      for (const id of Engine.clustersByTag(state.store).get(state.tagFilter) || []) add(id);
+    }
+    if (state.search.trim()) {
+      const r = Engine.searchNodes(state.store, state.search);
+      for (const id of r.matches) add(id);
+    }
+    return hl;
+  }
+  function svgEl(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    return e;
+  }
+  function render() {
+    const store = state.store;
+    state.pos = Engine.computeLayout(store);
+    const hl = highlightSet();
+    const filtering = Boolean(state.tagFilter || state.search.trim());
+    const vg = els.viewport;
+    vg.textContent = '';
+    for (const [id, p] of state.pos) {
+      if (id === store.rootId) continue;
+      const pp = state.pos.get(store.nodes[id].parentId);
+      if (!pp) continue;
+      const mx = (pp.x + p.x) / 2;
+      vg.appendChild(svgEl('path', {
+        d: `M ${pp.x} ${pp.y} C ${mx} ${pp.y}, ${mx} ${p.y}, ${p.x} ${p.y}`,
+        class: 'link' + (filtering && !hl.has(id) ? ' dim' : ''),
+      }));
+    }
+    for (const [id, p] of state.pos) {
+      const n = store.nodes[id];
+      const isRoot = id === store.rootId;
+      const dim = filtering && !hl.has(id);
+      const g = svgEl('g', {
+        class: 'node' + (isRoot ? ' root' : '') + (dim ? ' dim' : '') +
+               (state.selectedId === id ? ' selected' : ''),
+        transform: `translate(${p.x} ${p.y})`,
+      });
+      g.dataset.id = id;
+      g.appendChild(svgEl('circle', { r: isRoot ? 14 : 8 }));
+      const label = svgEl('text', { y: isRoot ? -24 : -15, 'text-anchor': 'middle' });
+      label.textContent = n.text.length > 44 ? n.text.slice(0, 43) + '…' : (n.text || '(untitled)');
+      g.appendChild(label);
+      const tip = svgEl('title');
+      tip.textContent = n.text || '';
+      g.appendChild(tip);
+      if (n.tags.length) {
+        const tg = svgEl('text', { y: 24, 'text-anchor': 'middle', class: 'tagline' });
+        n.tags.forEach((t, i) => {
+          if (i) tg.appendChild(document.createTextNode(' '));
+          const sp = svgEl('tspan', { 'data-tag': t });
+          sp.textContent = '#' + t;
+          if (state.tagFilter === t) sp.setAttribute('class', 'active');
+          tg.appendChild(sp);
+        });
+        g.appendChild(tg);
+      }
+      const kids = Engine.childrenOf(store, id);
+      if (n.collapsed && kids.length) {
+        const b = svgEl('text', { y: 4, 'text-anchor': 'middle', class: 'badge' });
+        b.textContent = '+' + kids.length;
+        g.appendChild(b);
+      }
+      vg.appendChild(g);
+    }
+    applyView();
+    renderSidebar();
+    updateCaptureHint();
+  }
+  function renderSidebar() {
+    const store = state.store;
+    const clusters = Engine.clustersByTag(store);
+    els.tagList.textContent = '';
+    if (!clusters.size) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = 'No tags yet — add “#tag” when capturing.';
+      els.tagList.appendChild(li);
+    }
+    const sorted = [...clusters.entries()]
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    for (const [tag, ids] of sorted) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      const label = document.createTextNode('#' + tag);
+      btn.appendChild(label);
+      const count = document.createElement('span');
+      count.className = 'count';
+      count.textContent = ids.length;
+      btn.appendChild(count);
+      if (state.tagFilter === tag) btn.classList.add('active');
+      btn.addEventListener('click', () => {
+        state.tagFilter = state.tagFilter === tag ? null : tag;
+        render();
+      });
+      li.appendChild(btn);
+      els.tagList.appendChild(li);
+    }
+    const nodeCount = Object.keys(store.nodes).length;
+    const branches = Engine.childrenOf(store, store.rootId).length;
+    els.stats.textContent =
+      `${nodeCount - 1} thoughts · ${clusters.size} tags · ${branches} branches`;
+  }
+  function updateCaptureHint() {
+    const id = state.selectedId && state.store.nodes[state.selectedId]
+      ? state.selectedId : state.store.rootId;
+    const label = id === state.store.rootId
+      ? 'root' : `“${state.store.nodes[id].text}”`;
+    els.captureHint.textContent = `into ${label}`;
+  }
+  function captureTargetId() {
+    return state.selectedId && state.store.nodes[state.selectedId]
+      ? state.selectedId : state.store.rootId;
+  }
+  function handleCapture() {
+    const { text, tags } = Engine.parseQuickEntry(els.capture.value);
+    if (!text && !tags.length) return;
+    const parentId = captureTargetId();
+    if (state.store.nodes[parentId].collapsed) {
+      state.store = Engine.updateNode(state.store, parentId, { collapsed: false });
+    }
+    state.store = Engine.addNode(state.store, { text, tags, parentId }).store;
+    save();
+    els.capture.value = '';
+    render();
+  }
+  function currentEditInput() {
+    return els.editHost.querySelector('.edit-pop');
+  }
+  function closeEdit() {
+    state.editingId = null;
+    const input = currentEditInput();
+    if (input) input.remove();
+  }
+  function commitEdit() {
+    const input = currentEditInput();
+    const id = state.editingId;
+    if (!input || !id) { closeEdit(); return; }
+    const { text, tags } = Engine.parseQuickEntry(input.value);
+    if (!text && !tags.length) { closeEdit(); return; }
+    state.store = Engine.updateNode(state.store, id, { text, tags });
+    save();
+    closeEdit();
+    render();
+  }
+  function startEdit(id) {
+    if (state.editingId === id) return;
+    commitEdit();
+    const n = state.store.nodes[id];
+    const p = state.pos.get(id);
+    if (!n || !p) return;
+    state.editingId = id;
+    const sp = mapToScreen(p);
+    const wrap = els.mapWrap.getBoundingClientRect();
+    const input = document.createElement('input');
+    input.className = 'edit-pop';
+    input.value = n.text + (n.tags.length ? ' ' + n.tags.map((t) => '#' + t).join(' ') : '');
+    input.style.left = Math.max(8, Math.min(sp.x - 140, wrap.width - 300)) + 'px';
+    input.style.top = (sp.y - 14) + 'px';
+    els.editHost.appendChild(input);
+    input.focus();
+    input.select();
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') commitEdit();
+      if (e.key === 'Escape') closeEdit();
+      e.stopPropagation();
+    });
+    input.addEventListener('blur', () => commitEdit());
+  }
+  function deleteSelected() {
+    const id = state.selectedId;
+    if (!id || id === state.store.rootId) return;
+    const parent = state.store.nodes[id].parentId;
+    state.store = Engine.deleteNode(state.store, id);
+    state.selectedId = parent;
+    save();
+    render();
+  }
+  function toggleCollapseSelected() {
+    const id = state.selectedId;
+    if (!id) return;
+    state.store = Engine.toggleCollapse(state.store, id);
+    save();
+    render();
+  }
+  function bindEvents() {
+    els.svg.addEventListener('pointerdown', (e) => {
+      if (state.editingId) commitEdit();
+      const nodeEl = e.target.closest('.node');
+      if (nodeEl) {
+        const id = nodeEl.dataset.id;
+        const p = state.pos.get(id);
+        svgDrag.drag = { id, el: nodeEl, sx: e.clientX, sy: e.clientY, px: p.x, py: p.y, z: state.view.z, moved: false };
+        try { els.svg.setPointerCapture(e.pointerId); } catch (_) {}
+      } else {
+        svgDrag.pan = { sx: e.clientX, sy: e.clientY, vx: state.view.x, vy: state.view.y, moved: false };
+        try { els.svg.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+    });
+    els.svg.addEventListener('pointermove', (e) => {
+      const d = svgDrag.drag;
+      const p = svgDrag.pan;
+      if (d) {
+        const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+        if (Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
+        if (d.moved) {
+          d.el.setAttribute('transform', `translate(${d.px + dx / d.z} ${d.py + dy / d.z})`);
+        }
+      } else if (p) {
+        p.moved = true;
+        state.view.x = p.vx + (e.clientX - p.sx);
+        state.view.y = p.vy + (e.clientY - p.sy);
+        applyView();
+      }
+    });
+    els.svg.addEventListener('pointerup', (e) => {
+      const d = svgDrag.drag;
+      const p = svgDrag.pan;
+      if (d) {
+        if (d.moved) {
+          const dx = (e.clientX - d.sx) / d.z, dy = (e.clientY - d.sy) / d.z;
+          state.store = Engine.updateNode(state.store, d.id, { px: d.px + dx, py: d.py + dy });
+          save();
+          justDragged = true;
+          setTimeout(() => { justDragged = false; }, 400);
+        } else {
+          state.selectedId = d.id;
+          if (e.pointerType === 'touch') {
+            const now = performance.now();
+            if (lastTap.id === d.id && now - lastTap.t < 350) {
+              startEdit(d.id);
+              lastTap = { id: null, t: 0 };
+            } else {
+              lastTap = { id: d.id, t: now };
+            }
+          }
+        }
+        render();
+      } else if (p && !p.moved) {
+        state.selectedId = null;
+        render();
+      }
+      svgDrag.drag = null;
+      svgDrag.pan = null;
+    });
+    els.svg.addEventListener('click', (e) => {
+      const tagEl = e.target.closest('[data-tag]');
+      if (!tagEl) return;
+      const t = tagEl.dataset.tag;
+      state.tagFilter = state.tagFilter === t ? null : t;
+      render();
+    });
+    els.svg.addEventListener('dblclick', (e) => {
+      if (justDragged) return;
+      const nodeEl = e.target.closest('.node');
+      if (!nodeEl || e.target.closest('[data-tag]')) return;
+      startEdit(nodeEl.dataset.id);
+    });
+    els.svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const before = svgPoint(e);
+      const factor = Math.exp(-e.deltaY * 0.0012);
+      const z = Math.min(2.5, Math.max(0.25, state.view.z * factor));
+      state.view.x = before.x - (before.x - state.view.x) * (z / state.view.z);
+      state.view.y = before.y - (before.y - state.view.y) * (z / state.view.z);
+      state.view.z = z;
+      applyView();
+    }, { passive: false });
+    let pinch = null;
+    els.svg.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        const [a, b] = e.touches;
+        const r = els.svg.getBoundingClientRect();
+        pinch = {
+          d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+          z: state.view.z,
+          cx: (a.clientX + b.clientX) / 2 - r.left,
+          cy: (a.clientY + b.clientY) / 2 - r.top,
+          vx: state.view.x,
+          vy: state.view.y,
+        };
+        svgDrag.drag = null;
+        svgDrag.pan = null;
+      }
+    }, { passive: true });
+    els.svg.addEventListener('touchmove', (e) => {
+      if (pinch && e.touches.length === 2) {
+        const [a, b] = e.touches;
+        const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        const z = Math.min(2.5, Math.max(0.25, pinch.z * (d / pinch.d)));
+        state.view.x = pinch.cx - (pinch.cx - pinch.vx) * (z / pinch.z);
+        state.view.y = pinch.cy - (pinch.cy - pinch.vy) * (z / pinch.z);
+        state.view.z = z;
+        applyView();
+      }
+    }, { passive: true });
+    els.svg.addEventListener('touchend', () => { pinch = null; }, { passive: true });
+    window.addEventListener('keydown', (e) => {
+      const typing = /^(INPUT|TEXTAREA)$/.test((document.activeElement || {}).tagName || '');
+      if (e.key === 'Escape') {
+        if (state.editingId) return;
+        state.selectedId = null;
+        state.tagFilter = null;
+        state.search = '';
+        els.search.value = '';
+        render();
+        return;
+      }
+      if (typing) return;
+      if (e.key === 'n' || e.key === 'N') { e.preventDefault(); els.capture.focus(); return; }
+      if (e.key === 'Delete') { deleteSelected(); return; }
+      if (e.key === ' ') { if (state.selectedId) { e.preventDefault(); toggleCollapseSelected(); } return; }
+      if (e.key === 'F2' && state.selectedId) startEdit(state.selectedId);
+    });
+    $('capture-form').addEventListener('submit', (e) => { e.preventDefault(); handleCapture(); });
+    els.search.addEventListener('input', () => { state.search = els.search.value; render(); });
+    $('btn-relayout').addEventListener('click', () => {
+      const s = Engine.clone(state.store);
+      for (const n of Object.values(s.nodes)) { n.px = null; n.py = null; }
+      state.store = s;
+      save();
+      render();
+    });
+    $('btn-export').addEventListener('click', async () => {
+      const raw = Engine.serialize(state.store);
+      const name = `thoughts-${new Date().toISOString().slice(0, 10)}.json`;
+      const file = new File([raw], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: 'Thought Map export' }); return; }
+        catch (_) { }
+      }
+      const blob = new Blob([raw], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+    $('btn-import').addEventListener('click', () => $('file-import').click());
+    $('file-import').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const raw = await file.text();
+      const res = Engine.deserialize(raw);
+      if (res.error) { alert('Import rejected: ' + res.error); return; }
+      state.store = res.store;
+      save();
+      render();
+      e.target.value = '';
+    });
+    $('btn-reset').addEventListener('click', () => {
+      if (!confirm('Delete all thoughts and start fresh?')) return;
+      state.store = Engine.createStore();
+      state.selectedId = null;
+      state.tagFilter = null;
+      save();
+      render();
+    });
+  }
+  const svgDrag = { drag: null, pan: null };
+  function init() {
+    state.store = load();
+    const r = els.svg.getBoundingClientRect();
+    state.view = { x: r.width / 2, y: Math.max(120, r.height / 2), z: 1 };
+    bindEvents();
+    render();
+    els.capture.focus();
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  }
+  init();
+})();
+
+</script>
+<script>
+(function () {
+  function fail(msg) {
+    var b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f7768e;color:#0f1115;padding:10px 14px;font:13px/1.4 system-ui,sans-serif;';
+    b.textContent = msg;
+    document.body.appendChild(b);
+  }
+  var missing = [];
+  if (typeof Engine === 'undefined') missing.push('engine.js');
+  if (!document.getElementById('viewport')) missing.push('the #viewport element');
+  if (missing.length) {
+    fail('Thought Map could not start: ' + missing.join(', ') + ' did not load. ' +
+         'engine.js, app.js and styles.css must sit in the SAME folder as index.html. ' +
+         'Check the browser console (F12) for the failing file, then reload.');
+    return;
+  }
+  var vp = document.getElementById('viewport');
+  if (!vp.childNodes.length) {
+    fail('Thought Map started but rendered nothing — open the browser console (F12) for details.');
+  }
+})();
+</script>
+</body>
+</html>
