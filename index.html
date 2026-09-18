@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thought Map</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1115">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
+<!-- iOS home-screen app -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Thoughts">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <h1>Thought Map</h1>
+  <form id="capture-form">
+    <input id="capture-input" type="text" placeholder="Capture a thought…  use #tags to group" autocomplete="off">
+    <span id="capture-hint"></span>
+  </form>
+  <nav>
+    <button id="btn-relayout" type="button" title="Clear manual positions and re-run auto layout">Relayout</button>
+    <button id="btn-export" type="button">Export</button>
+    <button id="btn-import" type="button">Import</button>
+    <input id="file-import" type="file" accept="application/json" hidden>
+    <button id="btn-reset" type="button" class="danger">Reset</button>
+  </nav>
+</header>
+
+<main>
+  <aside>
+    <input id="search-input" type="search" placeholder="Search thoughts & tags" autocomplete="off">
+    <h2>Tags</h2>
+    <ul id="tag-list"></ul>
+    <h2>Shortcuts</h2>
+    <dl class="help">
+      <dt>N</dt><dd>capture box</dd>
+      <dt>Enter</dt><dd>add thought (to selected node, else root)</dd>
+      <dt>Tap</dt><dd>select node</dd>
+      <dt>Double-tap</dt><dd>rename / retag node</dd>
+      <dt>Drag node</dt><dd>position freely (groups “like” thoughts spatially)</dd>
+      <dt>Drag canvas</dt><dd>pan</dd>
+      <dt>Pinch / scroll</dt><dd>zoom</dd>
+      <dt>Space</dt><dd>collapse / expand branch</dd>
+      <dt>Delete</dt><dd>remove node (children rejoin its parent)</dd>
+      <dt>Esc</dt><dd>clear selection & filters</dd>
+    </dl>
+    <p id="stats" class="stats"></p>
+    <p class="footer-note"><a href="tests.html">Run engine tests</a></p>
+  </aside>
+
+  <div id="map-wrap">
+    <svg id="map"><g id="viewport"></g></svg>
+    <div id="edit-host"></div>
+  </div>
+</main>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
